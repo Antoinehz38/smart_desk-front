@@ -1,0 +1,17 @@
+[project]
+name = "Smart_desk_IHM"
+version = "0.1.0"
+description = "IHM for Smart Desk Project"
+readme = "README.md"
+authors = [
+    { name = "Antoine Hanachowiz", email = "antoine.hanachowicz@outlook.com" },
+    {name = "Julie ALLIER"},
+    {name = "Antonin "}
+]
+requires-python = ">=3.12"
+
+dependencies = [
+    "nicegui",
+    "aiomqtt",
+    "matplotlib"
+]
