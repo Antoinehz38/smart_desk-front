@@ -1,51 +1,59 @@
-
-import asyncio, json, time
+import requests
 from nicegui import ui
-import aiomqtt
 
-BROKER = 'localhost'
-TOPIC  = 'smartdesk/+/metrics'
 
-ui.label('Smart Desk • Live Metrics').classes('text-xl font-semibold')
-status = ui.label('MQTT: connecting…').classes('text-sm opacity-70')
+from src.tools import make_gauge, make_chart, to_float_list
+from src.params.gauge_params import temp_gauge_params, humidity_gauge_params, pressure_gauge_params
 
-# 3 séries: Temp / Pression / Humidité
-line = ui.line_plot(n=3, limit=200, update_every=1).with_legend(
-    ['Temp (°C)', 'Press (hPa)', 'Humidité (%)'], loc='upper center', ncol=3
-).classes('w-full h-80')
+API_URL = "http://127.0.0.1:8085/data/all"
 
-latest = ui.label('—')
+ui.label('📈 SmartDesk — Mesures récentes').classes('text-2xl font-semibold mb-4')
 
-async def handle_payload(payload: bytes):
-    data = json.loads(payload.decode())
-    t = float(data.get('temp_c', 0.0))
-    p = float(data.get('pressure_hpa', 0.0))
-    h = float(data.get('humidity_pct', 0.0))
-    x = time.time()
-    line.push([x], [[t], [p], [h]])
-    latest.text = f'{time.strftime("%H:%M:%S")} • {t:.2f}°C, {p:.1f} hPa, {h:.1f}%'
 
-async def mqtt_consumer():
+
+
+with ui.row().classes('gap-4 flex-wrap items-start'):
+    temp_gauge = make_gauge('Température', temp_gauge_params)
+    humidity_gauge = make_gauge('Humidity', humidity_gauge_params)
+    pressure_gauge = make_gauge('Pression', pressure_gauge_params)
+
+
+
+status = ui.label('Chargement des données...').classes('mt-2 text-sm opacity-70')
+
+
+def update():
     try:
-        status.text = f'MQTT: connexion à {BROKER}…'
-        async with aiomqtt.Client(BROKER) as client:
-            async with client.messages() as messages:
-                await client.subscribe(TOPIC)
-                status.text = f'MQTT: connecté ({BROKER})'
-                async for msg in messages:
-                    await handle_payload(msg.payload)
+        r_data_all= requests.get("http://127.0.0.1:8085/data/all", timeout=3)
+        if r_data_all.status_code != 200:
+            status.set_text(f"Erreur HTTP {r_data_all.status_code}")
+            return
+
+        data = r_data_all.json()
+        times = data['time']  # ex: "2025-10-16T14:05:55Z"
+        temp  = to_float_list(data['temperature'])
+        press = to_float_list(data['pressure'])
+        hum   = to_float_list(data['humidity'])
+
+        # ECharts accepte directement [time_iso, value]
+        temp_gauge.options['series'][0]['data'][0]['value'] = float(temp[-1])
+        humidity_gauge.options['series'][0]['data'][0]['value'] = float(hum[-1])
+        pressure_gauge.options['series'][0]['data'][0]['value'] = float(press[-1])
+        #temp_chart.options['series'][0]['data']  = [[t, y] for t, y in zip(times, temp)]
+
+        temp_gauge.update()
+        humidity_gauge.update()
+        pressure_gauge.update()
+        #temp_chart.update()
+
+
+        status.set_text('Dernière mise à jour : OK ✅')
+
     except Exception as e:
-        status.text = f'MQTT: erreur ({e}) — retry…'
-        await asyncio.sleep(2)
-        asyncio.create_task(mqtt_consumer())  # retry
+        status.set_text(f'Erreur de connexion : {e}')
 
+# Premier rendu + refresh toutes les 5 s
+update()
+ui.timer(5.0, update, active=True)
 
-def start_mqtt_once():
-
-    if not getattr(start_mqtt_once, 'started', False):
-        start_mqtt_once.started = True
-        asyncio.create_task(mqtt_consumer())
-
-ui.timer(0.1, start_mqtt_once, once=True)
-
-ui.run(title='Smart Desk', reload=False,host = "127.0.0.0", port=8081 )
+ui.run(title='SmartDesk Live Dashboard')
