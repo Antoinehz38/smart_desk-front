@@ -52,3 +52,48 @@ def to_float_list(lst):
         except Exception:
             out.append(None)
     return out
+
+
+class Air_Quality_Widget:
+    def __init__(self,title: str = "Qualité de l'air"):
+        with ui.card().classes('w-64 p-4 rounded-2xl shadow-lg border border-gray-100'):
+            ui.label(title).classes('text-sm font-medium opacity-70 mb-1')
+
+            # ligne nombre + /100 (alignés sur la ligne de base)
+            with ui.row().classes('items-baseline gap-1'):
+                self.value = ui.label('—').classes('text-6xl font-extrabold leading-none') \
+                                     .style('line-height:1;')
+                self.unit  = ui.label('/100').classes('text-base opacity-50')
+
+            # badge d’état (point coloré + libellé)
+            with ui.row().classes('items-center gap-2 mt-2'):
+                self.dot = ui.element('div').classes('w-2.5 h-2.5 rounded-full bg-gray-300')
+                self.tag = ui.label('—').classes('text-sm font-semibold')
+
+    def update(self, score: float):
+        s = max(0, min(100, float(score)))
+        self.value.set_text(f'{s:.0f}')
+
+        # mapping couleurs & libellés
+        if s >= 80:
+            label = 'Excellent'
+            dot_cls = 'bg-green-500'
+            grad = 'linear-gradient(90deg,#34d399,#16a34a)'   # vert
+            text_color = '#059669'
+        elif s >= 50:
+            label = 'Moyen'
+            dot_cls = 'bg-amber-500'
+            grad = 'linear-gradient(90deg,#fbbf24,#d97706)'   # orange
+            text_color = '#d97706'
+        else:
+            label = 'Mauvais'
+            dot_cls = 'bg-red-500'
+            grad = 'linear-gradient(90deg,#f87171,#dc2626)'   # rouge
+            text_color = '#dc2626'
+
+        # nombre en dégradé
+        self.value.style(f'background:{grad}; -webkit-background-clip:text; -webkit-text-fill-color:transparent; line-height:1;')
+        # badge
+        self.dot.classes(replace=f'w-2.5 h-2.5 rounded-full {dot_cls}')
+        self.tag.set_text(label)
+        self.tag.style(f'color:{text_color}')
