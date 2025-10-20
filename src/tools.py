@@ -1,5 +1,6 @@
 from typing import Any, Dict
 from nicegui import ui
+import requests
 
 def make_gauge(title, params):
     MIN, IDEAL, MAX = params['MIN'], params['IDEAL'], params['MAX']  # ← bornes et valeur idéale au centre
@@ -97,3 +98,40 @@ class Air_Quality_Widget:
         self.dot.classes(replace=f'w-2.5 h-2.5 rounded-full {dot_cls}')
         self.tag.set_text(label)
         self.tag.style(f'color:{text_color}')
+
+
+class Room_choice_field:
+    def __init__(self):
+        with ui.card().classes('w-96 p-4 rounded-2xl shadow-md border border-gray-100'):
+            ui.label("Choix de la salle").classes('text-lg font-semibold mb-2')
+
+            # champ de texte
+            message_input = ui.input(
+                label="Numero de salle",
+            ).classes('w-full mb-3')
+
+            # zone d’affichage de la réponse
+            response_label = ui.label('').classes('text-sm text-gray-600 mt-2')
+
+            async def on_send():
+                text = message_input.value.strip()
+                if not text:
+                    response_label.set_text("⚠️ Écris quelque chose avant d'envoyer.")
+                    response_label.classes(replace='text-sm text-red-600 mt-2')
+                    return
+
+                ### TODO mettre un await
+                response = requests.put("http://127.0.0.1:8085/room/change", json= {"room_number":str(text)})
+
+                if response.status_code == 200:
+                    response_label.set_text(response.json()["message"])
+                    response_label.classes(replace='text-sm text-green-600 mt-2')
+                    message_input.value = ""  # reset
+                else:
+                    response_label.set_text(f"erreur while contacting back")
+                    response_label.classes(replace='text-sm text-green-600 mt-2')
+                    message_input.value = ""  # reset
+
+            ui.button("valider", on_click=on_send).classes(
+                'bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg'
+            )

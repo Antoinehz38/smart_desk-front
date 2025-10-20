@@ -3,7 +3,7 @@ from nicegui import ui
 
 
 from src.tools import make_gauge, make_chart, to_float_list, \
-                         Air_Quality_Widget
+                         Air_Quality_Widget, Room_choice_field
 from src.params.gauge_params import temp_gauge_params, humidity_gauge_params, pressure_gauge_params
 
 API_URL = "http://127.0.0.1:8085/data/all"
@@ -11,10 +11,10 @@ API_URL = "http://127.0.0.1:8085/data/all"
 ui.label('📈 SmartDesk — Mesures récentes').classes('text-2xl font-semibold mb-4')
 
 
+room_choice_field = Room_choice_field()
+
+
 air_quality_widget = Air_Quality_Widget()
-
-
-
 
 with ui.row().classes('gap-4 flex-wrap items-start'):
     temp_gauge = make_gauge('Température', temp_gauge_params)
