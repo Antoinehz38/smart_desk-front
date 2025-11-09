@@ -2,136 +2,102 @@ from typing import Any, Dict
 from nicegui import ui
 import requests
 
-def make_gauge(title, params):
-    MIN, IDEAL, MAX = params['MIN'], params['IDEAL'], params['MAX']  # ← bornes et valeur idéale au centre
-    ideal_ratio = (IDEAL - MIN) / (MAX - MIN)
-    band = 0.05  # largeur de la bande "idéale" (2% de l'échelle)
-    segments = [
-        [max(0, ideal_ratio - band), '#10b981'],  # en-dessous
-        [min(1, ideal_ratio + band), '#3b82f6'],  # bande idéale (étroite)
-        [1, '#ef4444'],  # au-dessus
-    ]
-
-    gauge = ui.echart({
-        'series': [{
-            'type': 'gauge',
-            'min': MIN, 'max': MAX,
-            'startAngle': 210, 'endAngle': -30,
-            'pointer': {'show': True, 'length': '70%'},
-            'anchor': {'show': True, 'size': 8},
-            'axisLine': {'lineStyle': {'width': 14, 'color': segments}},
-            'axisTick': {'distance': -15, 'length': 6, 'splitNumber': 4},
-            'splitLine': {'distance': -18, 'length': 14},
-            # 👇 labels plus petits, toujours en couleur noire pour contraste
-            'axisLabel': {'distance': -28, 'formatter': '{value}', 'color': '#000', 'fontSize': 10},
-            #'axisLabel': {'distance': -30, 'formatter': '{value}°C'},
-            'detail': {'fontSize': 22, 'offsetCenter': [0, '60%'], 'formatter': params['formateur']},
-            'title': {'show': True, 'offsetCenter': [0, '85%'], 'textStyle': {'fontSize': 14}},
-            'data': [{'value': IDEAL, 'name': title}],
-        }]
-    }).classes('w-70 h-70')
-
-    return gauge
+from src.params.ROOMS import ROOM_TABLE
+from src.quality_calculation import well_being_score
 
 
-def make_chart(title: str):
-    return ui.echart({
-        'title': {'text': title, 'left': 'center', 'textStyle': {'fontSize': 14}},
-        'grid': {'left': 50, 'right': 20, 'top': 40, 'bottom': 40},
-        'tooltip': {'trigger': 'axis'},
-        'xAxis': {'type': 'time', 'axisLabel': {'formatter': '{HH}:{mm}:{ss}'}},
-        'yAxis': {'type': 'value'},
-        'series': [{'type': 'line', 'showSymbol': True, 'data': []}],
-    }).classes('w-full h-60 my-3')
+def set_color(el, name: str):
+    el.style(f'color: {name}')
 
 
-def to_float_list(lst):
-    out = []
-    for v in lst:
-        try:
-            out.append(float(v))
-        except Exception:
-            out.append(None)
-    return out
+def color_air(q):
+    return 'green' if q >= 75 else 'orange' if q >= 50 else 'red'
 
 
-class Air_Quality_Widget:
-    def __init__(self,title: str = "Qualité de l'air"):
-        with ui.card().classes('w-64 p-4 rounded-2xl shadow-lg border border-gray-100'):
-            ui.label(title).classes('text-sm font-medium opacity-70 mb-1')
+def color_temp(t):
+    return 'green' if 18 <= t <= 26 else 'orange' if 15 <= t <= 29 else 'red'
 
-            # ligne nombre + /100 (alignés sur la ligne de base)
-            with ui.row().classes('items-baseline gap-1'):
-                self.value = ui.label('—').classes('text-6xl font-extrabold leading-none') \
-                                     .style('line-height:1;')
-                self.unit  = ui.label('/100').classes('text-base opacity-50')
 
-            # badge d’état (point coloré + libellé)
-            with ui.row().classes('items-center gap-2 mt-2'):
-                self.dot = ui.element('div').classes('w-2.5 h-2.5 rounded-full bg-gray-300')
-                self.tag = ui.label('—').classes('text-sm font-semibold')
+def color_press(p):
+    return 'green' if 1005 <= p <= 1018 else 'orange' if 990 <= p <= 1030 else 'red'
 
-    def update(self, score: float):
-        s = max(0, min(100, float(score)))
-        self.value.set_text(f'{s:.0f}')
 
-        # mapping couleurs & libellés
-        if s >= 80:
-            label = 'Excellent'
-            dot_cls = 'bg-green-500'
-            grad = 'linear-gradient(90deg,#34d399,#16a34a)'   # vert
-            text_color = '#059669'
-        elif s >= 50:
-            label = 'Moyen'
-            dot_cls = 'bg-amber-500'
-            grad = 'linear-gradient(90deg,#fbbf24,#d97706)'   # orange
-            text_color = '#d97706'
+def color_hum(h):
+    return 'green' if 30 <= h <= 60 else 'orange' if 20 <= h <= 70 else 'red'
+
+
+def color_lux(x):
+    return 'green' if x >= 70 else 'orange' if x >= 50 else 'red'
+
+
+def color_noise(db):
+    return 'green' if db < 45 else 'orange' if db <= 70 else 'red'
+
+
+class RoomInfo:
+    def __init__(self, room_number: str):
+        self.room_number = room_number
+        self.room_url_id = ROOM_TABLE[room_number]
+
+        with ui.card().classes('w-full rounded-2xl shadow-md p-4 bg-white'):
+            with ui.row().classes('items-center justify-between'):
+                ui.label(f"Salle {self.room_number}").classes('text-xl font-semibold')
+                self.badge = ui.badge('Qualité: --', color='grey') \
+                    .classes('text-lg px-3 py-2')
+
+            ui.separator()
+            with ui.row().classes('justify-between'):
+                ui.icon('thermostat').classes('opacity-70')
+                ui.label("Température:").classes('font-medium')
+                self.temp_value = ui.label("0 °C").classes('font-medium')
+
+            with ui.row().classes('justify-between'):
+                ui.icon('speed').classes('opacity-70')
+                ui.label("Pression:").classes('font-medium')
+                self.press_value = ui.label("0 hPa").classes('font-medium')
+
+            with ui.row().classes('justify-between'):
+                ui.icon('water_drop').classes('opacity-70')
+                ui.label("Humidité:").classes('font-medium')
+                self.hum_value = ui.label("0 %").classes('font-medium')
+
+            with ui.row().classes('justify-between'):
+                ui.icon('light_mode').classes('opacity-70')
+                ui.label("Luminosité:").classes('font-medium')
+                self.lum_value = ui.label("0 lx").classes('font-medium')
+
+            with ui.row().classes('justify-between'):
+                ui.icon('graphic_eq').classes('opacity-70')
+                ui.label("Bruit:").classes('font-medium')
+                self.noise_value = ui.label("0 dB").classes('font-medium')
+
+    def update(self):
+        url = f"https://api.thingspeak.com/channels/{self.room_url_id}/feeds.json"
+        params = {"results": 1}
+        response = requests.get(url, params)
+
+        Temperature = float(response.json()["feeds"][0]["field1"])
+        pressure = float(response.json()["feeds"][0]["field2"])
+        hum = float(response.json()['feeds'][0]['field3'])
+        if self.room_number == "2":
+            lux = float(response.json()["feeds"][0]["field4"])
+            noise = float(response.json()["feeds"][0]["field5"])
         else:
-            label = 'Mauvais'
-            dot_cls = 'bg-red-500'
-            grad = 'linear-gradient(90deg,#f87171,#dc2626)'   # rouge
-            text_color = '#dc2626'
+            lux = 0
+            noise = 0
 
-        # nombre en dégradé
-        self.value.style(f'background:{grad}; -webkit-background-clip:text; -webkit-text-fill-color:transparent; line-height:1;')
-        # badge
-        self.dot.classes(replace=f'w-2.5 h-2.5 rounded-full {dot_cls}')
-        self.tag.set_text(label)
-        self.tag.style(f'color:{text_color}')
+        score = well_being_score(temp_c=Temperature, press_hpa=pressure, hum=hum)
 
+        self.temp_value.text = f"{Temperature:.1f} °C"
+        self.press_value.text = f"{pressure:.2f} hPa"
+        self.hum_value.text = f"{hum:.1f} %"
+        self.lum_value.text = f"{lux:.0f} %"
+        self.noise_value.text = f"{noise:.0f} %"
+        self.badge.text = f"Score : {score}"
 
-class Room_choice_field:
-    def __init__(self):
-        with ui.card().classes('w-96 p-4 rounded-2xl shadow-md border border-gray-100'):
-            ui.label("Choix de la salle").classes('text-lg font-semibold mb-2')
-
-            # champ de texte
-            message_input = ui.input(
-                label="Numero de salle",
-            ).classes('w-full mb-3')
-
-            # zone d’affichage de la réponse
-            response_label = ui.label('').classes('text-sm text-gray-600 mt-2')
-
-            async def on_send():
-                text = message_input.value.strip()
-                if not text:
-                    response_label.set_text("⚠️ Écris quelque chose avant d'envoyer.")
-                    response_label.classes(replace='text-sm text-red-600 mt-2')
-                    return
-
-                ### TODO mettre un await
-                response = requests.put("http://127.0.0.1:8085/room/change", json= {"room_number":str(text)})
-
-                if response.status_code == 200:
-                    response_label.set_text(response.json()["message"])
-                    response_label.classes(replace='text-sm text-green-600 mt-2')
-                    message_input.value = ""  # reset
-                else:
-                    response_label.set_text(f"erreur while contacting back")
-                    response_label.classes(replace='text-sm text-green-600 mt-2')
-                    message_input.value = ""  # reset
-
-            ui.button("valider", on_click=on_send).classes(
-                'bg-blue-500 hover:bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg'
-            )
+        set_color(self.temp_value, color_temp(Temperature))
+        set_color(self.press_value, color_press(pressure))
+        set_color(self.hum_value, color_hum(hum))
+        set_color(self.lum_value, color_lux(lux))
+        set_color(self.noise_value, color_noise(noise))
+        self.badge.props(f'color={color_air(score)}')  # badge supporte bien color
