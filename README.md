@@ -20,4 +20,4 @@ pip install {nom du packet}
 # Faire tourner pour le back 
 
 
-Il suffit de run le script src/app.py 
+Il suffit de run le script [app.py](src/app.py)
