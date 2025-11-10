@@ -1,3 +1,6 @@
+
+
+
 def well_being_score(temp_c: float, hum: float, press_hpa: float, sound: float, lux: float) -> float:
     """
     Score 0-100, plus indulgent sauf valeurs franchement aberrantes.

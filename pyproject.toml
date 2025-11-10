@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "IHM for Smart Desk Project"
 readme = "README.md"
 authors = [
-    { name = "Antoine Hanachowiz" },
+    { name = "Antoine HANACHOWICZ" },
     {name = "Julie ALLIER"},
     {name = "Antonin CAMPS"}
 ]
