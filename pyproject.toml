@@ -4,9 +4,9 @@ version = "0.1.0"
 description = "IHM for Smart Desk Project"
 readme = "README.md"
 authors = [
-    { name = "Antoine Hanachowiz", email = "antoine.hanachowicz@outlook.com" },
+    { name = "Antoine Hanachowiz" },
     {name = "Julie ALLIER"},
-    {name = "Antonin "}
+    {name = "Antonin CAMPS"}
 ]
 requires-python = ">=3.12"
 

@@ -15,7 +15,7 @@ def color_air(q):
 
 
 def color_temp(t):
-    return 'green' if 18 <= t <= 26 else 'orange' if 15 <= t <= 29 else 'red'
+    return 'green' if 20 <= t <= 24 else 'orange' if 15 <= t <= 29 else 'red'
 
 
 def color_press(p):
@@ -27,11 +27,11 @@ def color_hum(h):
 
 
 def color_lux(x):
-    return 'green' if x >= 70 else 'orange' if x >= 50 else 'red'
+    return 'green' if 60 <= x <= 80 else 'orange' if 40 <= x <= 90 else 'red'
 
 
 def color_noise(db):
-    return 'green' if db < 45 else 'orange' if db <= 70 else 'red'
+    return 'green' if db < 25 else 'orange' if db <= 70 else 'red'
 
 
 class RoomInfo:
@@ -80,13 +80,13 @@ class RoomInfo:
         pressure = float(response.json()["feeds"][0]["field2"])
         hum = float(response.json()['feeds'][0]['field3'])
         if self.room_number == "2":
-            lux = float(response.json()["feeds"][0]["field4"])
-            noise = float(response.json()["feeds"][0]["field5"])
+            lux = float(response.json()["feeds"][0]["field4"]) - 20 # HARDCODED
+            noise = float(response.json()["feeds"][0]["field5"]) * 6
         else:
-            lux = 0
-            noise = 0
+            lux = 54
+            noise = 50
 
-        score = well_being_score(temp_c=Temperature, press_hpa=pressure, hum=hum)
+        score = well_being_score(temp_c=Temperature, press_hpa=pressure, hum=hum, lux=lux, sound=noise)
 
         self.temp_value.text = f"{Temperature:.1f} °C"
         self.press_value.text = f"{pressure:.2f} hPa"
